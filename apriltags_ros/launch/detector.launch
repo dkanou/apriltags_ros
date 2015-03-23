@@ -1,0 +1,20 @@
+<launch>
+  <arg name="camera" default="/camera"/>
+  <arg name="family" default="36h11"/>
+  <arg name="size" default="0.0254"/>
+
+  <node pkg="apriltags_ros" type="apriltag_detector_node"     name="apriltag_detector" output="screen" ns="$(arg camera)">
+    <param name="family" type="string" value="$(arg family)"/>
+    <param name="size" type="double" value="$(arg size)"/>
+    <rosparam param="tag_descriptions">
+      [
+        {id: 0, size: 0.16, frame_name: camera_rgb_optical_frame},
+        {id: 1, size: 0.0254, frame_name: camera_rgb_optical_frame}
+      ]
+    </rosparam>
+
+    <rosparam param="sensor_frame_id">
+      ["/camera_rgb_optical_frame"]
+    </rosparam>
+  </node>
+</launch>
