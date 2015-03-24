@@ -36,7 +36,7 @@
 
 #include <sensor_msgs/image_encodings.h>
 #include <boost/foreach.hpp>
-#include <pcl-1.7/pcl/common/copy_point.h>
+#include <pcl/common/copy_point.h>
 #include <geometry_msgs/PoseStamped.h>
 #include <geometry_msgs/PoseArray.h>
 #include <apriltags_ros/AprilTagDetection.h>
