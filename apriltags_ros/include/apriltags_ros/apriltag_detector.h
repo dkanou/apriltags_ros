@@ -92,6 +92,10 @@ namespace apriltags_ros
 
       std::map<int, AprilTagDescription> parse_tag_descriptions (XmlRpc::XmlRpcValue& april_tag_descriptions);
 
+      /** \brief Point Inclusion in Polygon.  W. Randolph Franklin implementation. */
+      bool
+      pnpoly(int nvert, float *vertx, float *verty, float testx, float testy);
+
     private:
       /** \brief The ROS node that grabbers are subscribed at. */
       ros::NodeHandle node_;
@@ -110,7 +114,7 @@ namespace apriltags_ros
 
       /** \brief Tag detections vector. */
       std::vector<AprilTags::TagDetection> detections_;
-      
+
       std::map<int, AprilTagDescription>::const_iterator description_itr;
 
       /** \brief OpenCV image. */
@@ -133,16 +137,18 @@ namespace apriltags_ros
       image_transport::Publisher image_pub_;
       ros::Publisher detections_pub_;
       ros::Publisher pose_pub_;
+      ros::Publisher marker_pub;
 
       /** \brief Apriltag 4 corners and the center. */
-      float p_ul, cx, cy;
+      float cx, cy;
+      int p_ul_, p_ur_, p_ll_, p_lr_;
 
       /** \brief Camera's intrinsic parameters. */
       double fx_, fy_, px_, py_;
       int cam_width_, cam_height_;
 
       /** \brief The latest processed point cloud from the stereo camera. */
-      pcl::PointCloud<pcl::PointXYZ>::Ptr stereo_cloud_ptr_;
+      const pcl::PointCloud<pcl::PointXYZ>::Ptr stereo_cloud_ptr_;
   };
 }
 
