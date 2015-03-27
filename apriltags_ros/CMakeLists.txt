@@ -56,6 +56,9 @@ include_directories(include
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS} -DBOOST_NO_CXX11_EXPLICIT_CONVERSION_OPERATORS)
 
+#add_definitions(-O3 -pipe -ffast-math -funroll-loops -ftree-vectorize -fomit-frame-pointer -pipe -mfpmath=sse -mmmx -msse -mtune=core2 -march=core2 -msse2 -msse3 -mssse3 -msse4)
+#add_definitions (-O3 -pipe -funroll-loops -fno-strict-aliasing)
+
 add_library(apriltag_detector
   src/apriltag_detector.cpp)
 

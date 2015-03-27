@@ -10,7 +10,8 @@
     <rosparam param="tag_descriptions">
       [
         {id: 0, size: 0.16, frame_name: multisense/right_camera_optical_frame},
-        {id: 1, size: 0.0254, frame_name: multisense/right_camera_optical_frame}
+        {id: 1, size: 0.0254, frame_name: multisense/right_camera_optical_frame},
+        {id: 2, size: 0.0254, frame_name: multisense/right_camera_optical_frame}
       ]
     </rosparam>
 

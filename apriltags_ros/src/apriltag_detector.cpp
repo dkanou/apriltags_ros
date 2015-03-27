@@ -54,12 +54,13 @@
 
 #include <XmlRpcException.h>
 
+
 namespace apriltags_ros
 {
 
   ///////////////////////////////////////////////////////////////////////////////
-  AprilTagDetector::AprilTagDetector (ros::NodeHandle& nh, ros::NodeHandle& pnh)
-  : it_(nh),
+  AprilTagDetector::AprilTagDetector (ros::NodeHandle& nh, ros::NodeHandle& pnh):
+    it_(nh),
     node_ (nh),
     stereo_cloud_ptr_ (new pcl::PointCloud<pcl::PointXYZ> ())
   {
@@ -83,11 +84,15 @@ namespace apriltags_ros
     }
 
     // Set the sensor frame
-    //if (!pnh.getParam("sensor_frame_id", sensor_frame_id_))
+    if (!pnh.getParam("sensor_frame_id", sensor_frame_id_))
     {
-      //sensor_frame_id_ = "camera_rgb_optical_frame";
       sensor_frame_id_ = "/multisense/left_camera_optical_frame";
+      //sensor_frame_id_ = "camera_rgb_optical_frame"
     }
+
+    // Set the options
+    show_apriltags_image_ = true;
+    show_apriltags_points_ = false;
 
     // AprilTags tag codes (36h11) and tag detector
     AprilTags::TagCodes tag_codes = AprilTags::tagCodes36h11;
@@ -95,23 +100,21 @@ namespace apriltags_ros
 
     // Subscribers
     image_sub_ = it_.subscribeCamera("/multisense/left/image_rect_color", 1, &AprilTagDetector::imageCb, this);
-    stereo_sub_ = node_.subscribe("/multisense/organized_image_points2", 1, &AprilTagDetector::stereoCB, this);
-
     //image_sub_ = it_.subscribeCamera("/camera/rgb/image_rect_color", 1, &AprilTagDetector::imageCb, this);
+
+    stereo_sub_ = node_.subscribe("/multisense/organized_image_points2", 1, &AprilTagDetector::stereoCB, this);
     //stereo_sub_ = node_.subscribe("/camera/depth_registered/points", 1, &AprilTagDetector::stereoCB, this);
 
     // Publishers
     image_pub_ = it_.advertise("tag_detections_image", 1);
-    detections_pub_ = node_.advertise<AprilTagDetectionArray>("tag_detections", 1);
-    pose_pub_ = node_.advertise<geometry_msgs::PoseArray>("tag_detections_pose", 1);
-    marker_pub = node_.advertise<visualization_msgs::Marker>("visualization_marker", 10);
+    marker_pub_ = node_.advertise<visualization_msgs::Marker>("visualization_marker", 10);
   }
 
 
   ///////////////////////////////////////////////////////////////////////////////
   AprilTagDetector::~AprilTagDetector ()
   {
-    // Subscribers
+    // Shutting down the subscribers
     image_sub_.shutdown();
     stereo_sub_.shutdown();
   }
@@ -121,6 +124,7 @@ namespace apriltags_ros
   void AprilTagDetector::imageCb(const sensor_msgs::ImageConstPtr& msg,
                                  const sensor_msgs::CameraInfoConstPtr& cam_info)
   {
+    double last = pcl::getTime ();
     try
     {
       cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
@@ -149,158 +153,60 @@ namespace apriltags_ros
 
     BOOST_FOREACH(AprilTags::TagDetection detection, detections_)
     {
-      std::map<int, AprilTagDescription>::const_iterator description_itr = descriptions_.find(detection.id);
+      description_itr_ = descriptions_.find(detection.id);
 
-      if(description_itr == descriptions_.end())
+      if(description_itr_ == descriptions_.end())
       {
         ROS_WARN_THROTTLE(10.0, "Found tag: %d, but no description was found for it", detection.id);
         continue;
       }
 
-      detection.draw(cv_ptr->image);
+      // Draw image
+      if (show_apriltags_image_)
+        detection.draw(cv_ptr->image);
 
-      AprilTagDescription description = description_itr->second;
-      tag_size = description.size();
+      AprilTagDescription description = description_itr_->second;
+      tag_size_ = description.size();
     }
 
-    image_pub_.publish (cv_ptr->toImageMsg());
+    // Publish the AprilTags image
+    if (show_apriltags_image_)
+      image_pub_.publish (cv_ptr->toImageMsg());
 
+    double now = pcl::getTime ();
+    //std::cout << "imageCb time: " << now-last << std::endl;
   }
 
   ////////////////////////////////////////////////////////////////////////////////
   void
   AprilTagDetector::stereoCB (const sensor_msgs::PointCloud2ConstPtr& msg)
   {
-    double now = pcl::getTime ();
+    double last = pcl::getTime ();
+
+
     geometry_msgs::PoseArray tag_pose_array;
     tag_pose_array.header = cv_ptr->header;
 
+    // For each detected AprilTag
+    int seq=0;
     BOOST_FOREACH(AprilTags::TagDetection detection, detections_)
     {
-      std::map<int, AprilTagDescription>::const_iterator description_itr = descriptions_.find(detection.id);
+      description_itr_ = descriptions_.find(detection.id);
 
-      if(description_itr == descriptions_.end())
+      if(description_itr_ == descriptions_.end())
       {
         ROS_WARN_THROTTLE(10.0, "Found tag: %d, but no description was found for it", detection.id);
         continue;
       }
 
-      AprilTagDescription description = description_itr->second;
-      tag_size = description.size();
+      AprilTagDescription description = description_itr_->second;
+      tag_size_ = description.size();
 
-      std::cout << "tag size: " << tag_size << std::endl;
+      // Central and conrner points of the AprilTag
       std::pair<float,float> p_[4] = detection.p;
       std::pair<float,float> cxy_ = detection.cxy;
-      cx = cxy_.first; //cols
-      cy = cxy_.second; //rows
-      std::cout << "v: " << cy << " , u: " << cx << std::endl;
-      std::cout << "Index: " << (std::floor(cy)*cam_width_) + std::floor(cx) << std::endl;
-
-      p_ul_ = static_cast<int>(std::floor(p_[0].second)*cam_width_ + std::floor(p_[0].first));
-      p_ur_ = static_cast<int>(std::floor(p_[1].second)*cam_width_ + std::floor(p_[1].first));
-      p_ll_ = static_cast<int>(std::floor(p_[2].second)*cam_width_ + std::floor(p_[2].first));
-      p_lr_ = static_cast<int>(std::floor(p_[3].second)*cam_width_ + std::floor(p_[3].first));
-
-      /*
-      // indices
-      std::cout << "p_[0].first: "  << p_[0].first << std::endl;
-      std::cout << "p_[1].first: "  << p_[1].first << std::endl;
-      std::cout << "p_[2].first: "  << p_[2].first << std::endl;
-      std::cout << "p_[3].first: "  << p_[3].first << std::endl;
-
-      std::cout << "p_[0].second: "  << p_[0].second << std::endl;
-      std::cout << "p_[1].second: "  << p_[1].second << std::endl;
-      std::cout << "p_[2].second: "  << p_[2].second << std::endl;
-      std::cout << "p_[3].second: "  << p_[3].second << std::endl;
-
-      
-      for (int i=p_[1].second; i<p_[3].second; i++)
-        for (int j=p_[1].first; j<p_[3].first; j++)
-          indices.push_back (i*cam_width_ + j);
-      */
-
-      std::vector<int> indices;
-      for (int i=cy-10; i<cy+10; i++)
-        for (int j=cx-10; j<cx+10; j++)
-         indices.push_back (i*cam_width_ + j);
-
-      pcl::fromROSMsg(*msg, *stereo_cloud_ptr_);
-      std::cout << "Size: " << stereo_cloud_ptr_->points.size() << ": " << cam_height_ <<" x " << cam_width_ << std::endl;
-      pcl::PointXYZ p;
-      Eigen::Vector4f centroid;
-
-      if (stereo_cloud_ptr_->points.size())
-      {
-        pcl::compute3DCentroid (*stereo_cloud_ptr_, indices, centroid);
-
-        //TBD: not only one point but an average of all image
-        p = stereo_cloud_ptr_->points[(std::floor(cy)*cam_width_) + std::floor(cx)];
-      }
-
-      Eigen::Matrix4d transform = detection.getRelativeTransform(tag_size, fx_, fy_, px_, py_);
-      Eigen::Matrix3d rot = transform.block(0,0,3,3);
-      Eigen::Quaternion<double> rot_quaternion = Eigen::Quaternion<double>(rot);
-
-      geometry_msgs::PoseStamped tag_pose;
-      //TBD: switch between each other
-      //tag_pose.pose.position.x = transform(0,3);
-      tag_pose.pose.position.x = p.x;
-      //tag_pose.pose.position.x = centroid(0);
-
-      //tag_pose.pose.position.y = transform(1,3);
-      tag_pose.pose.position.y = p.y;
-      //tag_pose.pose.position.y = centroid(1);
-
-      //tag_pose.pose.position.z = transform(2,3);
-      tag_pose.pose.position.z = p.z; //;
-      //tag_pose.pose.position.z = centroid(2);
-
-      std::cout << "x,y,z: " << transform(0,3) << "," << transform(1,3) << "," << transform(2,3) << std::endl;
-      std::cout << "P x,y,z: " << p.x << "," << p.y << "," << p.z << std::endl;
-      std::cout << "Centroid x,y,z:: " << centroid(0) << "," << centroid(1) << "," << centroid(2) << std::endl;
-      tag_pose.pose.orientation.x = rot_quaternion.x();
-      tag_pose.pose.orientation.y = rot_quaternion.y();
-      tag_pose.pose.orientation.z = rot_quaternion.z();
-      tag_pose.pose.orientation.w = rot_quaternion.w();
-      tag_pose.header = cv_ptr->header;
-      tag_pose_array.poses.push_back(tag_pose.pose);
-
-      AprilTagDetection tag_detection;
-      tag_detection.pose = tag_pose;
-      tag_detection.id = detection.id;
-      tag_detection.size = tag_size;
-      tag_detection_array.detections.push_back(tag_detection);
-
-      tf::Stamped<tf::Transform> tag_transform;
-      tf::poseStampedMsgToTF (tag_pose, tag_transform);
-      tf_pub_.sendTransform (tf::StampedTransform (tag_transform,
-                                                   tag_transform.stamp_,
-                                                   tag_transform.frame_id_,
-                                                   description.frame_name()));
-
-
-
-      // Center point Marker
-      visualization_msgs::Marker center_point;
-      center_point.header.frame_id = sensor_frame_id_;
-      center_point.header.stamp = ros::Time::now();
-      center_point.ns = "points_and_lines";
-      center_point.action = visualization_msgs::Marker::ADD;
-      center_point.type = visualization_msgs::Marker::POINTS;
-      center_point.color.g = 1.0f;
-      center_point.color.a = 1.0;
-      center_point.pose.orientation.w = 1.0;
-      center_point.scale.x = 0.008;
-      center_point.scale.y = 0.008;
-      center_point.scale.z = 0.008;
-      center_point.id = 0;
-      geometry_msgs::Point cntr_point;
-      //cntr_point.x = centroid(0);
-      //cntr_point.y = centroid(1);
-      //cntr_point.z = centroid(2);
-      //center_point.points.push_back (cntr_point);
-
-      
+      cu_ = cxy_.first; //cols
+      cv_ = cxy_.second; //rows
 
       float vertx[4], verty[4];
       verty[0] = p_[0].first;
@@ -317,36 +223,149 @@ namespace apriltags_ros
       float min_vertx = std::min (vertx[0], std::min (vertx[1], std::min (vertx[2], vertx[3])));
       float max_vertx = std::max (vertx[0], std::max (vertx[1], std::max (vertx[2], vertx[3])));
       float thres_vertx = 0.25*(max_vertx-min_vertx);
-      pcl::PointXYZ p_tmp;
-      
-      for (float i=min_vertx+thres_vertx; i<max_vertx-thres_vertx; i++)
-        for (float j=min_verty+thres_verty; j<max_verty-thres_verty; j++)
-        {
-          if (pnpoly (4, vertx, verty, i, j))
-          {
-            p_tmp = stereo_cloud_ptr_->points[static_cast<int>(i)*cam_width_ + static_cast<int>(j)];
-            if (!std::isnan(p_tmp.x))
+
+      // Transform the ros::msg to a pcl::stereo_cloud
+      pcl::fromROSMsg(*msg, *stereo_cloud_ptr_);
+
+      // Center point (in the cloud)
+      pcl::PointXYZ p;
+
+      // Centroid point (in the cloud)
+      Eigen::Vector4f centroid;
+
+      if (stereo_cloud_ptr_->points.size())
+      {
+        // Indices of the point to consider the centroid
+        std::vector<int> indices;
+        for (float i=min_vertx+thres_vertx; i<max_vertx-thres_vertx; i++)
+          for (float j=min_verty+thres_verty; j<max_verty-thres_verty; j++)
+            if (pnpoly (4, vertx, verty, i, j))
             {
-            cntr_point.x = p_tmp.x;
-            cntr_point.y = p_tmp.y;
-            cntr_point.z = p_tmp.z;
-            center_point.points.push_back (cntr_point);
+              pcl::PointXYZ p_tmp = stereo_cloud_ptr_->points[static_cast<int>(i)*cam_width_ + static_cast<int>(j)];
+              if (!std::isnan(p_tmp.x))
+                indices.push_back (static_cast<int>(i)*cam_width_ + static_cast<int>(j));
+            }
+
+        // Find the centroid
+        pcl::compute3DCentroid (*stereo_cloud_ptr_, indices, centroid);
+
+        // Center point of AprilTag point cloud
+        p = stereo_cloud_ptr_->points[(std::floor(cv_)*cam_width_) + std::floor(cu_)];
+      }
+
+      // Tag Pose
+      Eigen::Matrix4d transform = detection.getRelativeTransform(tag_size_, fx_, fy_, px_, py_);
+      Eigen::Matrix3d rot = transform.block(0,0,3,3);
+      Eigen::Quaternion<double> rot_quaternion = Eigen::Quaternion<double>(rot);
+
+      geometry_msgs::PoseStamped tag_pose;
+
+      // AprilTag poisition
+      if (std::isinf(centroid(0)) || std::isnan(centroid(0)))
+      {
+        tag_pose.pose.position.x = transform(0,3);
+        tag_pose.pose.position.y = transform(1,3);
+        tag_pose.pose.position.z = transform(2,3);
+      }
+      else
+      {
+        tag_pose.pose.position.x = centroid(0); //p.x
+        tag_pose.pose.position.y = centroid(1); //p.y
+        tag_pose.pose.position.z = centroid(2); //p.z
+      }
+
+      // AprilTag orientation
+      tag_pose.pose.orientation.x = rot_quaternion.x();
+      tag_pose.pose.orientation.y = rot_quaternion.y();
+      tag_pose.pose.orientation.z = rot_quaternion.z();
+      tag_pose.pose.orientation.w = rot_quaternion.w();
+
+      tag_pose.header.seq = seq;
+      tag_pose.header.frame_id = sensor_frame_id_;
+      tag_pose.header.stamp = ros::Time::now();
+      //cv_ptr->header;
+      tag_pose_array.poses.push_back(tag_pose.pose);
+
+      /*
+      AprilTagDetection tag_detection;
+      tag_detection.pose = tag_pose;
+      tag_detection.id = seq;//detection.id;
+      tag_detection.size = tag_size_;
+      tag_detection_array_.detections.push_back(tag_detection);
+      */
+      
+      tf::Stamped<tf::Transform> tag_transform;
+      tf::poseStampedMsgToTF (tag_pose, tag_transform);
+      tf_pub_.sendTransform (tf::StampedTransform (tag_transform,
+                                                   tag_transform.stamp_,
+                                                   tag_transform.frame_id_,
+                                                   description.frame_name()));
+
+
+
+      // Center point Marker
+      if (show_apriltags_points_)
+      {
+        visualization_msgs::Marker center_point;
+        center_point.header.seq = seq;
+        center_point.header.frame_id = sensor_frame_id_;
+        center_point.header.stamp = ros::Time::now();
+        center_point.ns = "AprilTag_point";
+        center_point.action = visualization_msgs::Marker::ADD;
+        center_point.type = visualization_msgs::Marker::POINTS;
+        center_point.color.g = 1.0f;
+        center_point.color.a = 1.0;
+        center_point.pose.orientation.w = 1.0;
+        center_point.scale.x = 0.008;
+        center_point.scale.y = 0.008;
+        center_point.scale.z = 0.008;
+        center_point.id = 0;
+        geometry_msgs::Point cntr_point;
+        cntr_point.x = centroid(0);
+        cntr_point.y = centroid(1);
+        cntr_point.z = centroid(2);
+        center_point.points.push_back (cntr_point);
+
+        pcl::PointXYZ p_tmp;
+
+        for (float i=min_vertx+thres_vertx; i<max_vertx-thres_vertx; i++)
+        {
+          for (float j=min_verty+thres_verty; j<max_verty-thres_verty; j++)
+          {
+            if (pnpoly (4, vertx, verty, i, j))
+            {
+              p_tmp = stereo_cloud_ptr_->points[static_cast<int>(i)*cam_width_ + static_cast<int>(j)];
+              if (!std::isnan(p_tmp.x))
+              {
+              cntr_point.x = p_tmp.x;
+              cntr_point.y = p_tmp.y;
+              cntr_point.z = p_tmp.z;
+              center_point.points.push_back (cntr_point);
+              }
             }
           }
         }
-        double last = pcl::getTime ();
-        std::cout << "time: " << last-now << std::endl;
-        
-      marker_pub.publish (center_point);
+        marker_pub_.publish (center_point);
+      }
+
+      // Unique seq number
+      seq++;
+
+      //std::cout << "x,y,z: " << transform(0,3) << "," << transform(1,3) << "," << transform(2,3) << std::endl;
+      //std::cout << "P x,y,z: " << p.x << "," << p.y << "," << p.z << std::endl;
+      //std::cout << "Centroid x,y,z:: " << centroid(0) << "," << centroid(1) << "," << centroid(2) << std::endl;
     }
 
     // Publishers
-    //detections_pub_.publish (tag_detection_array);
-    //pose_pub_.publish (tag_pose_array);
+
+    double now = pcl::getTime ();
+    //std::cout << "stereoCB time: " << now-last << std::endl;
   }
 
+
   ///////////////////////////////////////////////////////////////////////////////
-  std::map<int, AprilTagDescription> AprilTagDetector::parse_tag_descriptions (XmlRpc::XmlRpcValue& tag_descriptions)
+  std::map<int, AprilTagDescription>
+  AprilTagDetector::parse_tag_descriptions (XmlRpc::XmlRpcValue& tag_descriptions)
   {
     std::map<int, AprilTagDescription> descriptions;
     ROS_ASSERT(tag_descriptions.getType() == XmlRpc::XmlRpcValue::TypeArray);
@@ -381,6 +400,7 @@ namespace apriltags_ros
 
     return descriptions;
   }
+
 
   ////////////////////////////////////////////////////////////////////////////////
   bool
