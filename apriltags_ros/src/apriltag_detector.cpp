@@ -36,7 +36,7 @@
 
 #include <boost/foreach.hpp>
 
-#include <pcl/common/copy_point.h>
+//#include <pcl/common/copy_point.h>
 #include <pcl/features/feature.h>
 #include <pcl/common/centroid.h>
 #include <pcl/common/time.h>
