@@ -1,10 +1,9 @@
 #include <Eigen/Dense>
 
-#include "AprilTags/FloatImage.h"
-#include "AprilTags/MathUtil.h"
-#include "AprilTags/GLine2D.h"
-#include "AprilTags/Quad.h"
-#include "AprilTags/Segment.h"
+#include "apriltags/MathUtil.h"
+#include "apriltags/GLine2D.h"
+#include "apriltags/Quad.h"
+#include "apriltags/Segment.h"
 
 namespace AprilTags {
 	
@@ -34,7 +33,8 @@ Quad::Quad(const std::vector< std::pair<float,float> >& p, const std::pair<float
 #endif
 }
 
-std::pair<float,float> Quad::interpolate(float x, float y) {
+std::pair<float,float> Quad::interpolate(float x, float y) const 
+{
 #ifdef INTERPOLATE
   Eigen::Vector2f r1 = p0 + p01 * (x+1.)/2.;
   Eigen::Vector2f r2 = p3 + p32 * (x+1.)/2.;
@@ -45,11 +45,12 @@ std::pair<float,float> Quad::interpolate(float x, float y) {
 #endif
 }
 
-std::pair<float,float> Quad::interpolate01(float x, float y) {
+std::pair<float,float> Quad::interpolate01(float x, float y) const
+{
   return interpolate(2*x-1, 2*y-1);
 }
 
-void Quad::search(const FloatImage& fImage, std::vector<Segment*>& path,
+void Quad::search(std::vector<Segment*>& path,
                   Segment& parent, int depth, std::vector<Quad>& quads,
                   const std::pair<float,float>& opticalCenter) {
   // cout << "Searching segment " << parent.getId() << ", depth=" << depth << ", #children=" << parent.children.size() << endl;
@@ -152,7 +153,7 @@ void Quad::search(const FloatImage& fImage, std::vector<Segment*>& path,
       continue;
     }
     path[depth+1] = &child;
-    search(fImage, path, child, depth+1, quads, opticalCenter);
+    search(path, child, depth+1, quads, opticalCenter);
   }
 }
 

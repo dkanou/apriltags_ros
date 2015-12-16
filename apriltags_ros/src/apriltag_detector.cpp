@@ -32,78 +32,98 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <sensor_msgs/image_encodings.h>
-
-#include <boost/foreach.hpp>
-
-//#include <pcl/common/copy_point.h>
-#include <pcl/features/feature.h>
-#include <pcl/common/centroid.h>
-#include <pcl/common/time.h>
-
-#include <geometry_msgs/PoseStamped.h>
-#include <geometry_msgs/PoseArray.h>
-
 #include <apriltags_ros/apriltag_detector.h>
-#include <apriltags_ros/AprilTagDetection.h>
-#include <AprilTags/Tag16h5.h>
-#include <AprilTags/Tag25h7.h>
-#include <AprilTags/Tag25h9.h>
-#include <AprilTags/Tag36h9.h>
-#include <AprilTags/Tag36h11.h>
 
-#include <XmlRpcException.h>
+using namespace pcl;
+using namespace pcl::console;
+using namespace openni_wrapper;
+using pcl::OpenNIGrabber;
 
+/** \brief MACRO for framerate printing. */
+#define FPS_CALC(_WHAT_) \
+do \
+{ \
+  static unsigned count = 0;\
+  static double last = pcl::getTime ();\
+  double now = pcl::getTime (); \
+  ++count; \
+  if (now - last >= 1.0) \
+  { \
+    std::cout << "Average framerate("<< _WHAT_ << "): " \
+    << double(count)/double(now - last) << " Hz" <<  std::endl; \
+    count = 0; \
+    last = now; \
+  } \
+}while(false)
 
 namespace apriltags_ros
 {
-
   ///////////////////////////////////////////////////////////////////////////////
   AprilTagDetector::AprilTagDetector (ros::NodeHandle& nh, ros::NodeHandle& pnh):
-    it_(nh),
-    node_ (nh),
-    stereo_cloud_ptr_ (new pcl::PointCloud<pcl::PointXYZ> ())
+    it_ (nh), node_ (nh),
+    use_pclopennigrabber_ (false), use_rgb_image_grabber_ (false),
+    show_apriltags_image_ (true), show_apriltags_points_ (true),
+    stereo_cloud_ptr_ (new pcl::PointCloud<pcl::PointXYZ> ()),
+    fx_ (525.0), fy_ (525.0), px_ (319.5), py_ (239.5), cam_width_ (640)
   {
     // Parse all the AprilTags descriptions
     XmlRpc::XmlRpcValue april_tag_descriptions;
 
-    if (!pnh.getParam("tag_descriptions", april_tag_descriptions))
+    if (!pnh.getParam ("tag_descriptions", april_tag_descriptions))
     {
-      ROS_WARN("No april tags specified");
+      ROS_WARN ("No april tags specified");
     }
     else
     {
       try
       {
-        descriptions_ = parse_tag_descriptions(april_tag_descriptions);
+        descriptions_ = parse_tag_descriptions (april_tag_descriptions);
       }
-      catch(XmlRpc::XmlRpcException e)
+      catch (XmlRpc::XmlRpcException e)
       {
-        ROS_ERROR_STREAM("Error loading tag descriptions: "<<e.getMessage());
+        ROS_ERROR_STREAM ("Error loading tag descriptions: "<< e.getMessage ());
       }
     }
 
     // Set the sensor frame
     if (!pnh.getParam("sensor_frame_id", sensor_frame_id_))
     {
-      sensor_frame_id_ = "/multisense/left_camera_optical_frame";
-      //sensor_frame_id_ = "camera_rgb_optical_frame"
+      //sensor_frame_id_ = "/multisense/left_camera_optical_frame";
+      sensor_frame_id_ = "camera_rgb_optical_frame";
     }
-
-    // Set the options
-    show_apriltags_image_ = true;
-    show_apriltags_points_ = false;
 
     // AprilTags tag codes (36h11) and tag detector
     AprilTags::TagCodes tag_codes = AprilTags::tagCodes36h11;
-    tag_detector_= boost::shared_ptr<AprilTags::TagDetector>(new AprilTags::TagDetector(tag_codes));
+    tag_detector_= boost::shared_ptr<AprilTags::TagDetector>
+      (new AprilTags::TagDetector(tag_codes));
 
     // Subscribers
-    image_sub_ = it_.subscribeCamera("/multisense/left/image_rect_color", 1, &AprilTagDetector::imageCb, this);
-    //image_sub_ = it_.subscribeCamera("/camera/rgb/image_rect_color", 1, &AprilTagDetector::imageCb, this);
+    if (use_rgb_image_grabber_)
+    {
+      image_sub_ = node_.subscribe ("/camera/rgb/image_rect_color", 1,
+                                    &AprilTagDetector::rgbImageCallback, this);
+    }
+    point_cloud_sub_ = node_.subscribe("/camera/depth_registered/points", 1,
+                                       &AprilTagDetector::pointCloudCallback, this);
 
-    stereo_sub_ = node_.subscribe("/multisense/organized_image_points2", 1, &AprilTagDetector::stereoCB, this);
-    //stereo_sub_ = node_.subscribe("/camera/depth_registered/points", 1, &AprilTagDetector::stereoCB, this);
+    // Openni
+    if (use_pclopennigrabber_)
+    {
+      std::string device_id ("");
+      pcl::OpenNIGrabber::Mode depth_mode = pcl::OpenNIGrabber::OpenNI_Default_Mode;
+      pcl::OpenNIGrabber::Mode image_mode = pcl::OpenNIGrabber::OpenNI_Default_Mode;
+
+      openni_wrapper::OpenNIDriver& driver = openni_wrapper::OpenNIDriver::getInstance();
+     openni_grabber_ = pcl::OpenNIGrabber::Ptr (new OpenNIGrabber (device_id, depth_mode, image_mode));
+
+      boost::function<void (const boost::shared_ptr<openni_wrapper::Image>&image,
+                            const boost::shared_ptr<openni_wrapper::DepthImage>&depth_image,
+                            float constant)> f =
+        boost::bind (&AprilTagDetector::imageDepthImageCB, this, _1, _2, _3);
+
+      openni_grabber_->registerCallback (f);
+      openni_grabber_->start ();
+    }
 
     // Publishers
     image_pub_ = it_.advertise("tag_detections_image", 1);
@@ -116,18 +136,18 @@ namespace apriltags_ros
   {
     // Shutting down the subscribers
     image_sub_.shutdown();
-    stereo_sub_.shutdown();
+    point_cloud_sub_.shutdown();
   }
 
 
   ///////////////////////////////////////////////////////////////////////////////
-  void AprilTagDetector::imageCb(const sensor_msgs::ImageConstPtr& msg,
-                                 const sensor_msgs::CameraInfoConstPtr& cam_info)
+  void AprilTagDetector::rgbImageCallback(const sensor_msgs::ImageConstPtr& msg)
   {
-    double last = pcl::getTime ();
+    FPS_CALC("imageCB");
+
     try
     {
-      cv_ptr = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
+      image_cv_ptr_ = cv_bridge::toCvCopy(msg, sensor_msgs::image_encodings::BGR8);
     }
     catch (cv_bridge::Exception& e)
     {
@@ -136,20 +156,13 @@ namespace apriltags_ros
     }
 
     cv::Mat gray;
-    cv::cvtColor(cv_ptr->image, gray, CV_BGR2GRAY);
+    cv::cvtColor(image_cv_ptr_->image, gray, CV_BGR2GRAY);
+
     detections_ = tag_detector_->extractTags(gray);
     ROS_DEBUG("%d tag detected", (int)detections_.size());
 
     if(!sensor_frame_id_.empty())
-      cv_ptr->header.frame_id = sensor_frame_id_;
-
-    // camera intrinsic params
-    fx_ = cam_info->K[0];
-    fy_ = cam_info->K[4];
-    px_ = cam_info->K[2];
-    py_ = cam_info->K[5];
-    cam_width_ = cam_info->width;
-    cam_height_ = cam_info->height;
+      image_cv_ptr_->header.frame_id = sensor_frame_id_;
 
     BOOST_FOREACH(AprilTags::TagDetection detection, detections_)
     {
@@ -163,7 +176,7 @@ namespace apriltags_ros
 
       // Draw image
       if (show_apriltags_image_)
-        detection.draw(cv_ptr->image);
+        detection.draw(image_cv_ptr_->image);
 
       AprilTagDescription description = description_itr_->second;
       tag_size_ = description.size();
@@ -171,21 +184,39 @@ namespace apriltags_ros
 
     // Publish the AprilTags image
     if (show_apriltags_image_)
-      image_pub_.publish (cv_ptr->toImageMsg());
-
-    double now = pcl::getTime ();
-    //std::cout << "imageCb time: " << now-last << std::endl;
+      image_pub_.publish (image_cv_ptr_->toImageMsg());
   }
 
   ////////////////////////////////////////////////////////////////////////////////
   void
-  AprilTagDetector::stereoCB (const sensor_msgs::PointCloud2ConstPtr& msg)
+  AprilTagDetector::pointCloudCallback (const sensor_msgs::PointCloud2ConstPtr& msg)
   {
-    double last = pcl::getTime ();
+    FPS_CALC("pointCloudCallback");
 
+    pcl::toROSMsg (*msg, stereo_image_);
 
+    try
+    {
+      stereo_cv_ptr_ = cv_bridge::toCvCopy(stereo_image_, sensor_msgs::image_encodings::BGR8);
+    }
+    catch (cv_bridge::Exception& e)
+    {
+      ROS_ERROR ("cv_bridge exception: %s", e.what());
+      return;
+    }
+
+    cv::Mat gray;
+    cv::cvtColor (stereo_cv_ptr_->image, gray, CV_BGR2GRAY);
+
+    detections_ = tag_detector_->extractTags(gray);
+    ROS_DEBUG("%d tag detected", (int)detections_.size());
+
+    if(!sensor_frame_id_.empty())
+      stereo_cv_ptr_->header.frame_id = sensor_frame_id_;
+
+    // Detect the pose of the detected tags
     geometry_msgs::PoseArray tag_pose_array;
-    tag_pose_array.header = cv_ptr->header;
+    tag_pose_array.header = stereo_cv_ptr_->header;
 
     // For each detected AprilTag
     int seq=0;
@@ -199,10 +230,15 @@ namespace apriltags_ros
         continue;
       }
 
+      // Draw image
+      if (show_apriltags_image_)
+        detection.draw(stereo_cv_ptr_->image);
+
       AprilTagDescription description = description_itr_->second;
       tag_size_ = description.size();
 
-      // Central and conrner points of the AprilTag
+
+      // Central and corner points of the AprilTag
       std::pair<float,float> p_[4] = detection.p;
       std::pair<float,float> cxy_ = detection.cxy;
       cu_ = cxy_.first; //cols
@@ -251,6 +287,7 @@ namespace apriltags_ros
 
         // Center point of AprilTag point cloud
         p = stereo_cloud_ptr_->points[(std::floor(cv_)*cam_width_) + std::floor(cu_)];
+
       }
 
       // Tag Pose
@@ -283,25 +320,15 @@ namespace apriltags_ros
       tag_pose.header.seq = seq;
       tag_pose.header.frame_id = sensor_frame_id_;
       tag_pose.header.stamp = ros::Time::now();
-      //cv_ptr->header;
+      //stereo_cv_ptr_->header;
       tag_pose_array.poses.push_back(tag_pose.pose);
 
-      /*
-      AprilTagDetection tag_detection;
-      tag_detection.pose = tag_pose;
-      tag_detection.id = seq;//detection.id;
-      tag_detection.size = tag_size_;
-      tag_detection_array_.detections.push_back(tag_detection);
-      */
-      
       tf::Stamped<tf::Transform> tag_transform;
       tf::poseStampedMsgToTF (tag_pose, tag_transform);
       tf_pub_.sendTransform (tf::StampedTransform (tag_transform,
                                                    tag_transform.stamp_,
                                                    tag_transform.frame_id_,
                                                    description.frame_name()));
-
-
 
       // Center point Marker
       if (show_apriltags_points_)
@@ -350,16 +377,11 @@ namespace apriltags_ros
 
       // Unique seq number
       seq++;
-
-      //std::cout << "x,y,z: " << transform(0,3) << "," << transform(1,3) << "," << transform(2,3) << std::endl;
-      //std::cout << "P x,y,z: " << p.x << "," << p.y << "," << p.z << std::endl;
-      //std::cout << "Centroid x,y,z:: " << centroid(0) << "," << centroid(1) << "," << centroid(2) << std::endl;
     }
 
-    // Publishers
-
-    double now = pcl::getTime ();
-    //std::cout << "stereoCB time: " << now-last << std::endl;
+    // Publish the AprilTags image
+    if (show_apriltags_image_)
+      image_pub_.publish (stereo_cv_ptr_->toImageMsg());
   }
 
 
@@ -415,6 +437,21 @@ namespace apriltags_ros
         c = !c;
     }
     return c;
+  }
+
+  ///////////////////////////////////////////////////////////////////////////////
+  void AprilTagDetector::imageDepthImageCB (const boost::shared_ptr<openni_wrapper::Image>&image,
+                                            const boost::shared_ptr<openni_wrapper::DepthImage>&depth_image,
+                                            float constant)
+  {
+    FPS_CALC ("imageDepthImageCB");
+
+    cv::Mat frameRGB = cv::Mat(image->getHeight(),image->getWidth(), CV_8UC3);
+
+    image->fillRGB(frameRGB.cols,frameRGB.rows,frameRGB.data,frameRGB.step);
+    cv::Mat frameBGR;
+    cv::cvtColor(frameRGB,frameBGR,CV_RGB2BGR);
+    //TBD
   }
 }
 

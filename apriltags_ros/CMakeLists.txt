@@ -5,97 +5,156 @@ project(apriltags_ros)
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-  apriltags
-  image_transport
-  roscpp
-  sensor_msgs
-  geometry_msgs
-  tf
-  cv_bridge
-  message_generation
-  nodelet
-  std_msgs
-  cmake_modules
-)
+                    apriltags
+                    image_transport
+                    roscpp
+                    sensor_msgs
+                    geometry_msgs
+                    tf
+                    cv_bridge
+                    message_generation
+                    message_filters
+                    nodelet
+                    std_msgs
+                    cmake_modules)
 
 find_package(Eigen REQUIRED)
-find_package(PCL 1.7 REQUIRED COMPONENTS common io filter features segmentation search surface visualization)
+find_package(PCL 1.7 REQUIRED COMPONENTS
+                     common
+                     io
+                     filter
+                     features
+                     segmentation
+                     search
+                     surface
+                     visualization)
 
-add_message_files(
-  FILES
-  AprilTagDetection.msg
-  AprilTagDetectionArray.msg
-)
+add_message_files(FILES
+                  AprilTagDetection.msg
+                  AprilTagDetectionArray.msg)
 
-generate_messages(
-  DEPENDENCIES
-  std_msgs
-  geometry_msgs
-)
+generate_messages(DEPENDENCIES
+                  std_msgs
+                  geometry_msgs)
 
-catkin_package(
-  INCLUDE_DIRS include
-  LIBRARIES apriltag_detector
-  CATKIN_DEPENDS apriltags image_transport roscpp sensor_msgs geometry_msgs tf cv_bridge message_runtime nodelet std_msgs
-  DEPENDS Eigen
-)
+catkin_package(INCLUDE_DIRS include
+               LIBRARIES apriltag_detector
+               CATKIN_DEPENDS apriltags
+                              image_transport
+                              roscpp
+                              sensor_msgs
+                              geometry_msgs
+                              tf
+                              cv_bridge
+                              message_runtime
+                              message_filters
+                              nodelet
+                              std_msgs
+               DEPENDS Eigen)
+
+catkin_package(INCLUDE_DIRS include
+               LIBRARIES apriltag_grabber
+               CATKIN_DEPENDS apriltags
+                              image_transport
+                              roscpp
+                              sensor_msgs
+                              geometry_msgs
+                              tf
+                              cv_bridge
+                              message_runtime
+                              message_filters
+                              nodelet
+                              std_msgs
+               DEPENDS Eigen)
 
 ###########
 ## Build ##
 ###########
 
 include_directories(include)
-include_directories(
-  ${Eigen_INCLUDE_DIRS}
-  ${catkin_INCLUDE_DIRS}
-)
-
+include_directories(${Eigen_INCLUDE_DIRS}
+                    ${catkin_INCLUDE_DIRS})
 include_directories(include
                     ${catkin_INCLUDE_DIRS}
                     ${PCL_INCLUDE_DIRS})
 link_directories(${PCL_LIBRARY_DIRS})
 add_definitions(${PCL_DEFINITIONS} -DBOOST_NO_CXX11_EXPLICIT_CONVERSION_OPERATORS)
-
+add_definitions(-std=c++0x)
 #add_definitions(-O3 -pipe -ffast-math -funroll-loops -ftree-vectorize -fomit-frame-pointer -pipe -mfpmath=sse -mmmx -msse -mtune=core2 -march=core2 -msse2 -msse3 -mssse3 -msse4)
 #add_definitions (-O3 -pipe -funroll-loops -fno-strict-aliasing)
 
+#######################
+## apriltag_detector ##
+#######################
 add_library(apriltag_detector
-  src/apriltag_detector.cpp)
+            src/apriltag_detector.cpp)
 
 target_link_libraries(apriltag_detector
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES})
+                      ${catkin_LIBRARIES}
+                      ${PCL_LIBRARIES})
 
 add_dependencies(apriltag_detector apriltags_ros_generate_messages_cpp)
 
-
 add_library(apriltag_detector_nodelet src/apriltag_detector_nodelet.cpp)
 target_link_libraries(apriltag_detector_nodelet
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
-  apriltag_detector)
+                      ${catkin_LIBRARIES}
+                      ${PCL_LIBRARIES}
+                      apriltag_detector)
 
 add_executable(apriltag_detector_node src/apriltag_detector_node.cpp)
 target_link_libraries(apriltag_detector_node
-  ${catkin_LIBRARIES}
-  ${PCL_LIBRARIES}
-  apriltag_detector
-)
+                      ${catkin_LIBRARIES}
+                      ${PCL_LIBRARIES}
+                      apriltag_detector)
+
+#######################
+## apriltag_grabber ##
+#######################
+add_library(apriltag_grabber
+            src/apriltag_grabber.cpp)
+
+target_link_libraries(apriltag_grabber
+                      ${catkin_LIBRARIES}
+                      ${PCL_LIBRARIES})
+
+add_dependencies(apriltag_grabber apriltags_ros_generate_messages_cpp)
+
+add_library(apriltag_grabber_nodelet src/apriltag_grabber_nodelet.cpp)
+target_link_libraries(apriltag_grabber_nodelet
+                      ${catkin_LIBRARIES}
+                      ${PCL_LIBRARIES}
+                      apriltag_grabber)
+
+add_executable(apriltag_grabber_node src/apriltag_grabber_node.cpp)
+target_link_libraries(apriltag_grabber_node
+                      ${catkin_LIBRARIES}
+                      ${PCL_LIBRARIES}
+                      apriltag_grabber)
 
 #############
 ## Install ##
 #############
 
 ## Mark executables and/or libraries for installation
-install(TARGETS apriltag_detector apriltag_detector_nodelet apriltag_detector_node
-  ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
-  RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+install(TARGETS apriltag_detector
+                apriltag_detector_nodelet
+                apriltag_detector_node
+        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
+)
+
+install(TARGETS apriltag_grabber
+                apriltag_grabber_nodelet
+                apriltag_grabber_node
+        ARCHIVE DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+        LIBRARY DESTINATION ${CATKIN_PACKAGE_LIB_DESTINATION}
+        RUNTIME DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 )
 
 ## Mark cpp header files for installation
 install(DIRECTORY include/apriltags_ros
-  DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
+        DESTINATION ${CATKIN_PACKAGE_INCLUDE_DESTINATION}
 )
 
 ## Mark other files for installation (e.g. launch and bag files, etc.)

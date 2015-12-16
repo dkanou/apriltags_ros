@@ -6,11 +6,10 @@
 
 #include <Eigen/Dense>
 
-#include "Homography33.h"
+#include "AprilTags/Homography33.h"
 
 namespace AprilTags {
 
-class FloatImage;
 class Segment;
 
 using std::min;
@@ -28,10 +27,10 @@ public:
   Quad(const std::vector< std::pair<float,float> >& p, const std::pair<float,float>& opticalCenter);
 
   //! Interpolate given that the lower left corner of the lower left cell is at (-1,-1) and the upper right corner of the upper right cell is at (1,1).
-  std::pair<float,float> interpolate(float x, float y);
+  std::pair<float,float> interpolate(float x, float y) const;
 
   //! Same as interpolate, except that the coordinates are interpreted between 0 and 1, instead of -1 and 1.
-  std::pair<float,float> interpolate01(float x, float y);
+  std::pair<float,float> interpolate01(float x, float y) const;
 
   //! Points for the quad (in pixel coordinates), in counter clockwise order. These points are the intersections of segments.
   std::vector< std::pair<float,float> > quadPoints;
@@ -56,7 +55,7 @@ public:
    *  @param parent the first segment in the quad
    *  @param depth how deep in the search are we?
    */
-  static void search(const FloatImage& fImage, std::vector<Segment*>& path,
+  static void search(std::vector<Segment*>& path,
                      Segment& parent, int depth, std::vector<Quad>& quads,
                      const std::pair<float,float>& opticalCenter);
 

@@ -32,28 +32,24 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <apriltags_ros/apriltag_detector.h>
+#include <apriltags_ros/apriltag_grabber.h>
 #include <ros/ros.h>
-#include <nodelet/nodelet.h>
-#include <pluginlib/class_list_macros.h>
 
-namespace apriltags_ros
+/** \brief The main function to init ROS, the handles, and call the grabber. */
+int main(int argc, char **argv)
 {
-  class AprilTagDetectorNodelet : public nodelet::Nodelet
+  ros::init (argc, argv, "apriltag_grabber");
+  ros::NodeHandle nh;
+  ros::NodeHandle pnh ("~");
+
+  // The grabber object
+  apriltags_ros::AprilTagGrabber grabber (nh, pnh);
+
+  // Spin in 30Hz
+  ros::Rate r (30);
+  while (ros::ok ())
   {
-    public:
-      AprilTagDetectorNodelet (){}
-
-    private:
-      void onInit ()
-      {
-        detector_.reset (new AprilTagDetector (getNodeHandle (),
-                                               getPrivateNodeHandle ()));
-      }
-      boost::shared_ptr<AprilTagDetector> detector_;
-  };
+    ros::spinOnce ();
+    r.sleep ();
+  }
 }
-
-PLUGINLIB_DECLARE_CLASS (apriltags_ros, AprilTagDetectorNodelet,
-                         apriltags_ros::AprilTagDetectorNodelet,
-                         nodelet::Nodelet);

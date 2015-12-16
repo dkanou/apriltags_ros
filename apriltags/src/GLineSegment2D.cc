@@ -1,4 +1,4 @@
-#include "GLineSegment2D.h"
+#include "apriltags/GLineSegment2D.h"
 #include <limits>
 
 namespace AprilTags {

@@ -35,17 +35,64 @@
 #ifndef APRILTAG_DETECTOR_H
 #define APRILTAG_DETECTOR_H
 
+// ROS headers
 #include <ros/ros.h>
+
+// SENSOR_MSGS headers
 #include <sensor_msgs/PointCloud2.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
+
+// MESSAGE_FILTERS headers
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <message_filters/sync_policies/approximate_time.h>
+
+// GEOMETRY_MSGS headers
+#include <geometry_msgs/PoseStamped.h>
+#include <geometry_msgs/PoseArray.h>
+
+// BOOST headers
+#include <boost/shared_ptr.hpp>
+#include <boost/foreach.hpp>
+
+// PCL headers
+#include <pcl/common/centroid.h>
+#include <pcl/common/time.h>
+#include <pcl/features/feature.h>
+#include <pcl/io/openni_grabber.h>
+#include <pcl/io/openni_camera/openni_device.h>
+#include <pcl/io/openni_camera/openni_device_kinect.h>
+#include <pcl/io/openni_camera/openni_device_primesense.h>
+#include <pcl/io/openni_camera/openni_device_xtion.h>
+#include <pcl/io/pcd_io.h>
 #include <pcl/point_types.h>
 #include <pcl/point_cloud.h>
+
 #include <pcl_conversions/pcl_conversions.h>
-#include <AprilTags/TagDetector.h>
-#include <apriltags_ros/AprilTagDetectionArray.h>
+
+// CV_BRIDGE headers
 #include <cv_bridge/cv_bridge.h>
+
+// VISUALIZATION_MSGS headers
 #include <visualization_msgs/MarkerArray.h>
+
+// IMAGE_TRANSPORT headers
 #include <image_transport/image_transport.h>
+
+// TF headers
 #include <tf/transform_broadcaster.h>
+
+// XmlRpc headers
+#include <XmlRpcException.h>
+
+// AprilTags headers
+#include <AprilTags/TagDetector.h>
+#include <AprilTags/Tag36h11.h>
+
+// APRILTAG_ROS headers
+#include <apriltags_ros/AprilTagDetectionArray.h>
+#include <apriltags_ros/AprilTagDetection.h>
 
 namespace apriltags_ros
 {
@@ -61,13 +108,16 @@ namespace apriltags_ros
       {};
 
       /** \brief Returns the size of the tag. */
-      double size () {return size_;}
+      double
+      size () {return size_;}
 
       /** \brief Returns the id of the tag. */
-      int id () {return id_;}
+      int
+      id () {return id_;}
 
       /** \brief Returns the frame name of the tag. */
-      std::string& frame_name () {return frame_name_;}
+      std::string&
+      frame_name () {return frame_name_;}
 
     private:
       /** \brief Tag id. */
@@ -80,7 +130,6 @@ namespace apriltags_ros
       std::string frame_name_;
   };
 
-
   class AprilTagDetector
   {
     /** \brief AprilTag detector class. */
@@ -91,23 +140,32 @@ namespace apriltags_ros
       /** \brief Destructor. */
       ~AprilTagDetector ();
 
+      /** \brief Point cloud callback function. */
+      void
+      pointCloudCallback (const sensor_msgs::PointCloud2ConstPtr& point_cloud_msg);
+
+      /** \brief RGB image callback function. */
+      void
+      rgbImageCallback (const sensor_msgs::ImageConstPtr& rgb_image_msg);
+
+      /** \brief RGB image and depth callback function. */
+      void imageDepthImageCB (const boost::shared_ptr<openni_wrapper::Image>&image,
+                              const boost::shared_ptr<openni_wrapper::DepthImage>&depth_image,
+                              float constant);
+
     private:
-      /** \brief Image and camera info callback function. */
-      void imageCb (const sensor_msgs::ImageConstPtr& msg,
-                    const sensor_msgs::CameraInfoConstPtr& cam_info);
-
-      /** \brief Stereo cloud callback function. */
-      void stereoCB (const sensor_msgs::PointCloud2ConstPtr& msg);
-
       /** \brief Point Inclusion in Polygon (W. R. Franklin impl). */
       bool
-      pnpoly(int nvert, float *vertx, float *verty, float testx, float testy);
+      pnpoly (int nvert, float *vertx, float *verty, float testx, float testy);
 
       /** \brief XML tag descriptor parser. */
       std::map<int, AprilTagDescription>
       parse_tag_descriptions (XmlRpc::XmlRpcValue& april_tag_descriptions);
 
     protected:
+      /** \brief PCL openni grabber. */
+      pcl::OpenNIGrabber::Ptr openni_grabber_;
+
       /** \brief Whether to visualize the AprilTag images. */
       bool show_apriltags_image_;
 
@@ -118,14 +176,11 @@ namespace apriltags_ros
       /** \brief The ROS node that grabbers are subscribed at. */
       ros::NodeHandle node_;
 
-      /** \brief RGB camera subscriber. */
-      image_transport::CameraSubscriber image_sub_;
-
-      /** \brief Stereo camera subscriber. */
-      ros::Subscriber stereo_sub_;
-
       /** \brief Sensor's frame id. */
       std::string sensor_frame_id_;
+
+      /** \brief Point cloud and image subscribers. */
+      ros::Subscriber point_cloud_sub_, image_sub_;
 
       /** \brief AprilTags descriptions. */
       std::map<int, AprilTagDescription> descriptions_;
@@ -136,8 +191,8 @@ namespace apriltags_ros
       /** \brief Description iterator. */
       std::map<int, AprilTagDescription>::const_iterator description_itr_;
 
-      /** \brief OpenCV image. */
-      cv_bridge::CvImagePtr cv_ptr;
+      /** \brief OpenCV images for the RGB and the Stereo input. */
+      cv_bridge::CvImagePtr image_cv_ptr_, stereo_cv_ptr_;
 
       /** \brief Image transport. */
       image_transport::ImageTransport it_;
@@ -166,6 +221,15 @@ namespace apriltags_ros
 
       /** \brief The latest processed point cloud from the stereo camera. */
       const pcl::PointCloud<pcl::PointXYZ>::Ptr stereo_cloud_ptr_;
+
+      /** \brief The RGB image coming from the point cloud. */
+      sensor_msgs::Image stereo_image_;
+
+      /** \brief Whether to use PCLOpenniGrabber. */
+      bool use_pclopennigrabber_;
+
+      /** \brief Whether to use the RGB image grabber. */
+      bool use_rgb_image_grabber_;
   };
 }
 

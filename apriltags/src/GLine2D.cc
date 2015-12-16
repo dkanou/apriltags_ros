@@ -1,4 +1,4 @@
-#include "GLine2D.h"
+#include "apriltags/GLine2D.h"
 
 namespace AprilTags {
 

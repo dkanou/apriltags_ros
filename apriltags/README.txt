@@ -8,17 +8,13 @@ See examples/apriltags_demo.cpp for a simple example that detects
 April tags (see tags/pdf/tag36h11.pdf) in laptop or webcam images and
 marks any tags in the live image.
 
-Ubuntu dependencies:
-sudo apt-get install subversion cmake libopencv-dev libeigen3-dev libv4l-dev
-
-Mac dependencies:
-sudo port install pkgconfig opencv eigen3
-
-Uses the pods build system in connection with cmake, see:
-http://sourceforge.net/p/pods/
-
+Originally by
 Michael Kaess
 October 2012
+
+Modified by
+Humphrey Hu
+April 2014
 
 ----------------------------
 

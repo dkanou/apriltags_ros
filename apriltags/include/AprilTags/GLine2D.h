@@ -5,8 +5,8 @@
 #include <utility>
 #include <vector>
 
-#include "MathUtil.h"
-#include "XYWeight.h"
+#include "AprilTags/MathUtil.h"
+#include "AprilTags/XYWeight.h"
 
 namespace AprilTags {
 

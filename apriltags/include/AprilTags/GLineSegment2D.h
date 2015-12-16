@@ -6,8 +6,8 @@
 #include <cmath>
 #include <utility>
 
-#include "GLine2D.h"
-#include "XYWeight.h"
+#include "AprilTags/GLine2D.h"
+#include "AprilTags/XYWeight.h"
 
 namespace AprilTags {
 

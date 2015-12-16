@@ -1,0 +1,10 @@
+<launch>
+  <arg name="camera" default="/camera"/>
+
+  <node pkg="apriltags_ros" type="apriltag_grabber_node" 
+        name="apriltag_grabber" output="screen" ns="$(arg camera)">
+    <rosparam param="sensor_frame_id">
+      ["/camera_rgb_optical_frame"]
+    </rosparam>
+  </node>
+</launch>

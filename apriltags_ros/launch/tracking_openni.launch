@@ -1,5 +1,5 @@
 <launch>
-  <arg name="camera" default="/multisense"/>
+  <arg name="camera" default="/camera"/>
   <arg name="family" default="36h11"/>
   <arg name="size" default="0.0254"/>
 
@@ -9,14 +9,14 @@
     <param name="size" type="double" value="$(arg size)"/>
     <rosparam param="tag_descriptions">
       [
-        {id: 0, size: 0.16, frame_name: multisense/left_camera_optical_frame},
-        {id: 1, size: 0.0254, frame_name: multisense/left_camera_optical_frame},
-        {id: 2, size: 0.0254, frame_name: multisense/left_camera_optical_frame}
+        {id: 0, size: 0.16, frame_name: camera_rgb_optical_frame},
+        {id: 1, size: 0.0254, frame_name: camera_rgb_optical_frame},
+        {id: 2, size: 0.0254, frame_name: camera_rgb_optical_frame}
       ]
     </rosparam>
 
     <rosparam param="sensor_frame_id">
-      ["/multisense/left_camera_optical_frame"]
+      ["/camera_rgb_optical_frame"]
     </rosparam>
   </node>
 </launch>

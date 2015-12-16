@@ -32,28 +32,30 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <apriltags_ros/apriltag_detector.h>
+#include <apriltags_ros/apriltag_grabber.h>
 #include <ros/ros.h>
 #include <nodelet/nodelet.h>
 #include <pluginlib/class_list_macros.h>
 
 namespace apriltags_ros
 {
-  class AprilTagDetectorNodelet : public nodelet::Nodelet
+  class AprilTagGrabberNodelet : public nodelet::Nodelet
   {
     public:
-      AprilTagDetectorNodelet (){}
+      AprilTagGrabberNodelet (){}
 
     private:
       void onInit ()
       {
-        detector_.reset (new AprilTagDetector (getNodeHandle (),
-                                               getPrivateNodeHandle ()));
+        detector_.reset (new AprilTagGrabber (getNodeHandle (),
+                                              getPrivateNodeHandle ()));
       }
-      boost::shared_ptr<AprilTagDetector> detector_;
+
+      boost::shared_ptr<AprilTagGrabber> detector_;
   };
 }
 
-PLUGINLIB_DECLARE_CLASS (apriltags_ros, AprilTagDetectorNodelet,
-                         apriltags_ros::AprilTagDetectorNodelet,
-                         nodelet::Nodelet);
+PLUGINLIB_DECLARE_CLASS(apriltags_ros,
+                        AprilTagGrabberNodelet,
+                        apriltags_ros::AprilTagGrabberNodelet,
+                        nodelet::Nodelet);

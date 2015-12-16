@@ -32,28 +32,57 @@
  *  POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include <apriltags_ros/apriltag_detector.h>
+#ifndef APRILTAG_GRABBER_H
+#define APRILTAG_GRABBER_H
+
+// ROS headers
 #include <ros/ros.h>
-#include <nodelet/nodelet.h>
-#include <pluginlib/class_list_macros.h>
+#include <boost/shared_ptr.hpp>
+#include <opencv2/opencv.hpp>
+
+#include <pcl/io/openni_grabber.h>
+#include <pcl/io/openni2_grabber.h>
+
+#include <pcl/point_types.h>
+#include <pcl/point_cloud.h>
+#include <cv_bridge/cv_bridge.h>
+#include <image_transport/image_transport.h>
+
+using namespace pcl::io::openni2;
 
 namespace apriltags_ros
 {
-  class AprilTagDetectorNodelet : public nodelet::Nodelet
+  /** \brief Sync policies for synchronizing sensor_msgs */
+  class AprilTagGrabber
   {
+    /** \brief AprilTag grabber class. */
     public:
-      AprilTagDetectorNodelet (){}
+      /** \brief Constructor. */
+      AprilTagGrabber (ros::NodeHandle& nh, ros::NodeHandle& pnh);
+
+      /** \brief Destructor. */
+      ~AprilTagGrabber ();
+
+      /** \brief Stereo cloud callback function. */
+      void imageDepthImageCB (const Image::Ptr &image,
+                              const DepthImage::Ptr &depth_image);
+
+      //void imageDepthImageCB (const boost::shared_ptr<openni_wrapper::Image>&image,
+      //                        const boost::shared_ptr<openni_wrapper::DepthImage>&depth_image,
+      //                        float constant);
+
+    protected:
+      pcl::OpenNIGrabber::Ptr grabber;
 
     private:
-      void onInit ()
-      {
-        detector_.reset (new AprilTagDetector (getNodeHandle (),
-                                               getPrivateNodeHandle ()));
-      }
-      boost::shared_ptr<AprilTagDetector> detector_;
+      /** \brief The ROS node that grabbers are subscribed at. */
+      ros::NodeHandle node_;
+
+      /** \brief Sensor's frame id. */
+      std::string sensor_frame_id_;
+
+      /** \brief OpenCV image. */
+      cv_bridge::CvImagePtr cv_ptr;
   };
 }
-
-PLUGINLIB_DECLARE_CLASS (apriltags_ros, AprilTagDetectorNodelet,
-                         apriltags_ros::AprilTagDetectorNodelet,
-                         nodelet::Nodelet);
+#endif

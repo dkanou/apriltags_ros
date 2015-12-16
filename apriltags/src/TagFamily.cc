@@ -1,6 +1,6 @@
 #include <iostream>
 
-#include "TagFamily.h"
+#include "apriltags/TagFamily.h"
 
 /**
 
@@ -22,6 +22,7 @@ TagFamily *tag36h11 = new TagFamily(tagCodes36h11);
 
 */
 
+using namespace std;
 
 namespace AprilTags {
 

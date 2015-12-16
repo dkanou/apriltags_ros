@@ -5,7 +5,7 @@
 #include <iterator>
 #include <vector>
 
-#include "Segment.h"
+#include "AprilTags/Segment.h"
 
 namespace AprilTags {
 

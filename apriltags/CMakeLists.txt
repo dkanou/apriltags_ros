@@ -24,11 +24,24 @@ include_directories(
   ${catkin_INCLUDE_DIRS}
 )
 
+add_definitions(-Wall -std=c++0x)
 add_definitions(-O3 -pipe -ffast-math -funroll-loops -ftree-vectorize -fomit-frame-pointer -pipe -mfpmath=sse -mmmx -msse -mtune=core2 -march=core2 -msse2 -msse3 -mssse3 -msse4)
 add_definitions (-O3 -pipe -funroll-loops -fno-strict-aliasing)
 
 add_library(apriltags
-  src/Edge.cc src/FloatImage.cc src/GLine2D.cc src/GLineSegment2D.cc src/Gaussian.cc src/GrayModel.cc src/Homography33.cc src/MathUtil.cc src/Quad.cc src/Segment.cc src/TagDetection.cc src/TagDetector.cc src/TagFamily.cc src/UnionFindSimple.cc
+  src/Edge.cc
+  src/GLine2D.cc
+  src/GLineSegment2D.cc
+  src/GrayModel.cc
+  src/Homography33.cc
+  src/MathUtil.cc
+  src/Quad.cc
+  src/Segment.cc
+  src/TagDetection.cc
+  src/TagDetectionUtils.cc
+  src/TagDetector.cc
+  src/TagFamily.cc
+  src/UnionFindSimple.cc
 )
 target_link_libraries(apriltags
   ${Eigen_LIBRARIES}

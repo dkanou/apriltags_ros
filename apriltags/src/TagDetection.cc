@@ -1,8 +1,8 @@
 
 #include "opencv2/opencv.hpp"
 
-#include "TagDetection.h"
-#include "MathUtil.h"
+#include "apriltags/TagDetection.h"
+#include "apriltags/MathUtil.h"
 
 #ifdef PLATFORM_APERIOS
 //missing/broken isnan
@@ -127,10 +127,8 @@ void TagDetection::getRelativeTranslationRotation(double tag_size, double fx, do
   Eigen::Matrix4d MT = M*T;
   // translation vector from camera to the April tag
   trans = MT.col(3).head(3);
-  // orientation of April tag with respect to camera: the camera
-  // convention makes more sense here, because yaw,pitch,roll then
-  // naturally agree with the orientation of the object
-  rot = T.block(0,0,3,3);
+  // rotation from camera to the April tag
+  rot = MT.block(0,0,3,3); // NOTE HH changed this to not be camera!!
 }
 
 // draw one April tag detection on actual image
@@ -156,6 +154,14 @@ void TagDetection::draw(cv::Mat& image) const {
   cv::putText(image, strSt.str(),
               cv::Point2f(cxy.first + 10, cxy.second + 10),
               cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,255));
+  for( unsigned int i = 0; i < 4; i++ ) {
+		std::stringstream ss;
+		ss << i;
+		cv::putText(image, ss.str(),
+			cv::Point2f(p[i].first, p[i].second),
+			cv::FONT_HERSHEY_PLAIN, 1, cv::Scalar(0,0,255));
+  }
+  
 }
 
 } // namespace

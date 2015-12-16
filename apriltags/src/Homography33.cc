@@ -6,15 +6,16 @@
 
 #include <opencv2/opencv.hpp>
 
-#include "Homography33.h"
+#include "apriltags/Homography33.h"
 
 Homography33::Homography33(const std::pair<float,float> &opticalCenter) : cxy(opticalCenter), fA(), H(), valid(false) {
   fA.setZero();
   H.setZero();
 }
 
-Eigen::Matrix3d& Homography33::getH() {
-  compute();
+Eigen::Matrix3d Homography33::getH() const
+{
+//   compute();
   return H;
 }
 
