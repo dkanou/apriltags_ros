@@ -99,11 +99,11 @@ namespace apriltags_ros
     tag_detector_= boost::shared_ptr<AprilTags::TagDetector>(new AprilTags::TagDetector(tag_codes));
 
     // Subscribers
-    image_sub_ = it_.subscribeCamera("/multisense/left/image_rect_color", 1, &AprilTagDetector::imageCb, this);
-    //image_sub_ = it_.subscribeCamera("/camera/rgb/image_rect_color", 1, &AprilTagDetector::imageCb, this);
+    //image_sub_ = it_.subscribeCamera("/multisense/left/image_rect_color", 1, &AprilTagDetector::imageCb, this);
+    image_sub_ = it_.subscribeCamera("/camera/rgb/image_rect_color", 1, &AprilTagDetector::imageCb, this);
 
-    stereo_sub_ = node_.subscribe("/multisense/organized_image_points2", 1, &AprilTagDetector::stereoCB, this);
-    //stereo_sub_ = node_.subscribe("/camera/depth_registered/points", 1, &AprilTagDetector::stereoCB, this);
+    //stereo_sub_ = node_.subscribe("/multisense/organized_image_points2", 1, &AprilTagDetector::stereoCB, this);
+    stereo_sub_ = node_.subscribe("/camera/depth_registered/points", 1, &AprilTagDetector::stereoCB, this);
 
     // Publishers
     image_pub_ = it_.advertise("tag_detections_image", 1);
