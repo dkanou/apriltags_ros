@@ -63,7 +63,7 @@ namespace apriltags_ros
     it_ (nh), node_ (nh),
     use_pclopennigrabber_ (false), use_rgb_image_grabber_ (false),
     show_apriltags_image_ (true), show_apriltags_points_ (true),
-    stereo_cloud_ptr_ (new pcl::PointCloud<pcl::PointXYZ> ()),
+    stereo_cloud_ptr_ (new pcl::PointCloud<pcl::PointXYZRGBA> ()),
     fx_ (525.0), fy_ (525.0), px_ (319.5), py_ (239.5), cam_width_ (640)
   {
     // Parse all the AprilTags descriptions
@@ -193,8 +193,12 @@ namespace apriltags_ros
   {
     FPS_CALC("pointCloudCallback");
 
-    pcl::toROSMsg (*msg, stereo_image_);
+    //pcl::toROSMsg (*msg, stereo_image_);
 
+    // Transform the ros::msg to a pcl::stereo_cloud
+    pcl::fromROSMsg(*msg, *stereo_cloud_ptr_);
+
+    /*
     try
     {
       stereo_cv_ptr_ = cv_bridge::toCvCopy(stereo_image_, sensor_msgs::image_encodings::BGR8);
@@ -207,16 +211,38 @@ namespace apriltags_ros
 
     cv::Mat gray;
     cv::cvtColor (stereo_cv_ptr_->image, gray, CV_BGR2GRAY);
+    */
 
+    cv::Mat imageFrame = cv::Mat (stereo_cloud_ptr_->height,
+                                  stereo_cloud_ptr_->width,
+                                  CV_8UC3); 
+    for (int h=0; h<imageFrame.rows; h++) 
+    {
+      for (int w=0; w<imageFrame.cols; w++) 
+      {
+        pcl::PointXYZRGBA point = stereo_cloud_ptr_->at(w, h);
+        Eigen::Vector3i rgb = point.getRGBVector3i();
+        imageFrame.at<cv::Vec3b>(h,w)[0] = rgb[2];
+        imageFrame.at<cv::Vec3b>(h,w)[1] = rgb[1];
+        imageFrame.at<cv::Vec3b>(h,w)[2] = rgb[0];
+      }
+    }
+
+    cv::Mat gray;
+    cv::cvtColor (imageFrame, gray, CV_BGR2GRAY);
+
+    double last = pcl::getTime ();
     detections_ = tag_detector_->extractTags(gray);
     ROS_DEBUG("%d tag detected", (int)detections_.size());
+    double now = pcl::getTime ();
+    std::cout << "Detection time: " << now-last << std::endl;
 
-    if(!sensor_frame_id_.empty())
-      stereo_cv_ptr_->header.frame_id = sensor_frame_id_;
+    //if(!sensor_frame_id_.empty())
+    //  stereo_cv_ptr_->header.frame_id = sensor_frame_id_;
 
     // Detect the pose of the detected tags
     geometry_msgs::PoseArray tag_pose_array;
-    tag_pose_array.header = stereo_cv_ptr_->header;
+    //tag_pose_array.header = stereo_cv_ptr_->header;
 
     // For each detected AprilTag
     int seq=0;
@@ -231,8 +257,11 @@ namespace apriltags_ros
       }
 
       // Draw image
+      //if (show_apriltags_image_)
+      //  detection.draw(stereo_cv_ptr_->image);
+
       if (show_apriltags_image_)
-        detection.draw(stereo_cv_ptr_->image);
+        detection.draw (imageFrame);
 
       AprilTagDescription description = description_itr_->second;
       tag_size_ = description.size();
@@ -260,11 +289,10 @@ namespace apriltags_ros
       float max_vertx = std::max (vertx[0], std::max (vertx[1], std::max (vertx[2], vertx[3])));
       float thres_vertx = 0.25*(max_vertx-min_vertx);
 
-      // Transform the ros::msg to a pcl::stereo_cloud
-      pcl::fromROSMsg(*msg, *stereo_cloud_ptr_);
+      
 
       // Center point (in the cloud)
-      pcl::PointXYZ p;
+      pcl::PointXYZRGBA p;
 
       // Centroid point (in the cloud)
       Eigen::Vector4f centroid;
@@ -277,7 +305,7 @@ namespace apriltags_ros
           for (float j=min_verty+thres_verty; j<max_verty-thres_verty; j++)
             if (pnpoly (4, vertx, verty, i, j))
             {
-              pcl::PointXYZ p_tmp = stereo_cloud_ptr_->points[static_cast<int>(i)*cam_width_ + static_cast<int>(j)];
+              pcl::PointXYZRGBA p_tmp = stereo_cloud_ptr_->points[static_cast<int>(i)*cam_width_ + static_cast<int>(j)];
               if (!std::isnan(p_tmp.x))
                 indices.push_back (static_cast<int>(i)*cam_width_ + static_cast<int>(j));
             }
@@ -353,7 +381,7 @@ namespace apriltags_ros
         cntr_point.z = centroid(2);
         center_point.points.push_back (cntr_point);
 
-        pcl::PointXYZ p_tmp;
+        pcl::PointXYZRGBA p_tmp;
 
         for (float i=min_vertx+thres_vertx; i<max_vertx-thres_vertx; i++)
         {
@@ -380,8 +408,8 @@ namespace apriltags_ros
     }
 
     // Publish the AprilTags image
-    if (show_apriltags_image_)
-      image_pub_.publish (stereo_cv_ptr_->toImageMsg());
+    //if (show_apriltags_image_)
+    //  image_pub_.publish (stereo_cv_ptr_->toImageMsg());
   }
 
 

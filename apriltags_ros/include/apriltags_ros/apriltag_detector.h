@@ -220,7 +220,7 @@ namespace apriltags_ros
       int cam_width_, cam_height_;
 
       /** \brief The latest processed point cloud from the stereo camera. */
-      const pcl::PointCloud<pcl::PointXYZ>::Ptr stereo_cloud_ptr_;
+      const pcl::PointCloud<pcl::PointXYZRGBA>::Ptr stereo_cloud_ptr_;
 
       /** \brief The RGB image coming from the point cloud. */
       sensor_msgs::Image stereo_image_;
